@@ -18,7 +18,7 @@ func CreateCli() {
 			workspaceName := cCtx.Args().Get(1)
 
 			if cmd == "create" {
-				workspaces.CreateWorkspace(workspaceName)
+				workspaces.CreateWorkspace(workspaceName, "aws")
 			} else if cmd == "start" {
 				workspaces.StartWorkspace(workspaceName)
 			} else if cmd == "stop" {
