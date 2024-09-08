@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -18,8 +19,8 @@ func CreateEC2Instance(name string) {
 	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion("eu-central-1"),
 		config.WithCredentialsProvider(credentials.StaticCredentialsProvider{
 			Value: aws.Credentials{
-				AccessKeyID:     "",
-				SecretAccessKey: "",
+				AccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
+				SecretAccessKey: os.Getenv("AWS_SECRET_KEY"),
 				Source:          "example hard coded credentials",
 			},
 		}))
@@ -50,26 +51,12 @@ func createInstance(client *ec2.Client, instanceProfileName string) (string, err
 	userData := `#!/bin/bash
 useradd -m -d /home/coderino coderino
 
-curl -fsSL https://get.docker.com | bash
-
-# Modify Docker daemon configuration
-cat > /etc/docker/daemon.json <<EOF
-{
-  "hosts": ["unix:///var/run/docker.sock", "tcp://0.0.0.0:2375"]
-}
-EOF
-
-# Create a systemd drop-in file to modify the Docker service
-mkdir -p /etc/systemd/system/docker.service.d
-cat > /etc/systemd/system/docker.service.d/override.conf <<EOF
-[Service]
-ExecStart=
-ExecStart=/usr/bin/dockerd
-EOF
-
-systemctl daemon-reload
-systemctl restart docker
+sudo su -
+yum update -y
+yum install docker -y
 systemctl start docker
+docker volume create vscodeserver
+docker run -d --init -p 3000:3000 -v vscodeserver gitpod/openvscode-server
 
 usermod -aG docker coderino
 
@@ -84,14 +71,12 @@ echo "coderino ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/91-coderino
 `
 
 	runResult, err := client.RunInstances(context.TODO(), &ec2.RunInstancesInput{
-		MinCount:     aws.Int32(1),
-		MaxCount:     aws.Int32(1),
-		ImageId:      aws.String("ami-04f76ebf53292ef4d"),
-		InstanceType: types.InstanceTypeT3Micro,
-		KeyName:      aws.String("coderino-key-pair"),
-		SecurityGroupIds: []string{
-			"sg-06b1a1845661e100a",
-		},
+		MinCount:         aws.Int32(1),
+		MaxCount:         aws.Int32(1),
+		ImageId:          aws.String("ami-04f76ebf53292ef4d"),
+		InstanceType:     types.InstanceTypeT3Micro,
+		KeyName:          aws.String("coderino-key-pair"),
+		SecurityGroupIds: []string{"sg-03d779f2ea697952d"},
 		IamInstanceProfile: &types.IamInstanceProfileSpecification{
 			Name: aws.String(instanceProfileName),
 		},
