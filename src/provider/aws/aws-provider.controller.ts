@@ -1,13 +1,17 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { AwsProviderService } from './aws-provider.service';
 
 @Controller('aws')
 export class AwsProviderController {
   constructor(private readonly awsService: AwsProviderService) {}
 
-  @Get('create/:amount')
-  async createWorkspace(@Param() params: any) {
-    const createdIds = await this.awsService.createWorkspace(params.amount);
+  @Get('create')
+  async createWorkspace(
+    @Param() params: any,
+    @Query('names') names: Array<string>,
+  ) {
+    console.log('names:', names);
+    const createdIds = await this.awsService.createWorkspace(names);
     return { created: createdIds };
   }
 
