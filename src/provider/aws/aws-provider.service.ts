@@ -56,7 +56,13 @@ docker run -it -d --name code-server -p 8081:8080 -v "/home/ubuntu/.local:/home/
       MaxCount: names.length,
       InstanceType: 't3a.medium',
       TagSpecifications: [
-        { Tags: [{ Key: 'env', Value: 'DEV' }], ResourceType: 'instance' },
+        {
+          Tags: [
+            { Key: 'env', Value: 'DEV' },
+            { Key: 'Name', Value: `workspace:${names[0]}` },
+          ],
+          ResourceType: 'instance',
+        },
       ], // TODO: mit envirnoment Flag abgleichen
       UserData: Buffer.from(userData).toString('base64'),
     });
@@ -66,7 +72,6 @@ docker run -it -d --name code-server -p 8081:8080 -v "/home/ubuntu/.local:/home/
       const { Instances } = await this.client.send(command);
 
       const instanceList = Instances.map((instance) => {
-        console.log('instance: ', instance);
         return `• ${instance.InstanceId}`;
       }).join('\n');
 
