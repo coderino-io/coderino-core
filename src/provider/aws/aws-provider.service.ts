@@ -1,17 +1,20 @@
 import {
+  DescribeInstancesCommand,
   EC2Client,
   paginateDescribeInstances,
   RunInstancesCommand,
   TerminateInstancesCommand,
 } from '@aws-sdk/client-ec2';
 import { fromIni } from '@aws-sdk/credential-providers';
+import { HttpService } from '@nestjs/axios';
 import { Injectable } from '@nestjs/common';
+import { firstValueFrom } from 'rxjs';
 
 @Injectable()
 export class AwsProviderService {
   private client: EC2Client;
 
-  constructor() {
+  constructor(private readonly http: HttpService) {
     const credentials = fromIni({ profile: process.env.AWS_PROFILE });
     this.client = new EC2Client({ credentials });
   }
@@ -57,10 +60,7 @@ docker run -it -d --name code-server -p 8081:8080 -v "/home/ubuntu/.local:/home/
       InstanceType: 't3a.medium',
       TagSpecifications: [
         {
-          Tags: [
-            { Key: 'env', Value: 'DEV' },
-            { Key: 'Name', Value: `workspace:${names[0]}` },
-          ],
+          Tags: [{ Key: 'env', Value: 'DEV' }],
           ResourceType: 'instance',
         },
       ], // TODO: mit envirnoment Flag abgleichen
@@ -76,17 +76,34 @@ docker run -it -d --name code-server -p 8081:8080 -v "/home/ubuntu/.local:/home/
       }).join('\n');
 
       console.log(`Launched Instances:\n${instanceList}`);
-      const ipAdresses = Instances.map((instance) => instance.PublicIpAddress);
+
+      // wait 1 second
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      const { Reservations } = await this.client.send(
+        new DescribeInstancesCommand({
+          InstanceIds: Instances.map((inst) => inst.InstanceId),
+        }),
+      );
+
+      const idAddressMapping = Reservations[0].Instances.map((instance) => ({
+        id: instance.InstanceId,
+        address: instance.PublicIpAddress,
+        name:
+          instance.Tags.filter((tag) => tag.Key === 'Name')[0]?.Value ||
+          'no name',
+      }));
 
       const config = this.writeCaddyConfig(
-        ipAdresses.map((addr, idx) => ({ name: names[idx], ipAddress: addr })),
+        idAddressMapping.map((inst, idx) => ({
+          name: names[idx],
+          ipAddress: inst.address,
+        })),
       );
 
       this.adaptProxy(config);
 
-      return Instances.map(
-        (instance) => `${instance.InstanceId} | ${instance.PublicIpAddress}`,
-      );
+      return idAddressMapping.map((instance) => JSON.stringify(instance));
     } catch (caught) {
       console.warn(`${caught.message}`);
       return [];
@@ -149,8 +166,14 @@ docker run -it -d --name code-server -p 8081:8080 -v "/home/ubuntu/.local:/home/
     }
   }
 
-  adaptProxy(configJson: string) {
-    console.log(configJson);
+  async adaptProxy(configJson: string) {
+    const response = await firstValueFrom(
+      this.http.post('http://localhost:2019/load', configJson, {
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    console.log('caddy response: ', response.status, response.statusText);
   }
 
   private writeCaddyConfig(
@@ -162,27 +185,25 @@ docker run -it -d --name code-server -p 8081:8080 -v "/home/ubuntu/.local:/home/
           servers: {
             srv0: {
               listen: [':443'],
-              routes: [
-                config.map((val) => ({
-                  handle: [
-                    {
-                      handler: 'subroute',
-                      routes: [
-                        {
-                          handle: [
-                            {
-                              handler: 'reverse_proxy',
-                              upstreams: [{ dial: `${val.ipAddress}:8080` }],
-                            },
-                          ],
-                        },
-                      ],
-                    },
-                  ],
-                  match: [{ host: [`${val.name}.coderino.io`] }],
-                  terminal: true,
-                })),
-              ],
+              routes: config.map((val) => ({
+                handle: [
+                  {
+                    handler: 'subroute',
+                    routes: [
+                      {
+                        handle: [
+                          {
+                            handler: 'reverse_proxy',
+                            upstreams: [{ dial: `${val.ipAddress}:8080` }],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+                match: [{ host: [`${val.name}.coderino.io`] }],
+                terminal: true,
+              })),
             },
           },
         },
