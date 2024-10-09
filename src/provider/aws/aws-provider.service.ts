@@ -1,4 +1,5 @@
 import {
+  DescribeInstancesCommand,
   EC2Client,
   paginateDescribeInstances,
   RunInstancesCommand,
@@ -67,31 +68,30 @@ docker run -it -d --name code-server -p 8081:8080 -v "/home/ubuntu/.local:/home/
 
     try {
       console.log('send command to AWS...');
-      // const { Instances } = await this.client.send(command);
+      const { Instances } = await this.client.send(command);
 
-      // const instanceList = Instances.map((instance) => {
-      //   return `• ${instance.InstanceId}`;
-      // }).join('\n');
+      const instanceList = Instances.map((instance) => {
+        return `• ${instance.InstanceId}`;
+      }).join('\n');
 
-      // console.log(`Launched Instances:\n${instanceList}`);
+      console.log(`Launched Instances:\n${instanceList}`);
 
-      // // wait 1 second
-      // await new Promise((resolve) => setTimeout(resolve, 1500));
+      // wait 1 second
+      await new Promise((resolve) => setTimeout(resolve, 1500));
 
-      // const { Reservations } = await this.client.send(
-      //   new DescribeInstancesCommand({
-      //     InstanceIds: Instances.map((inst) => inst.InstanceId),
-      //   }),
-      // );
+      const { Reservations } = await this.client.send(
+        new DescribeInstancesCommand({
+          InstanceIds: Instances.map((inst) => inst.InstanceId),
+        }),
+      );
 
-      // const idAddressMapping = Reservations[0].Instances.map((instance) => ({
-      //   id: instance.InstanceId,
-      //   address: instance.PublicIpAddress,
-      //   name:
-      //     instance.Tags.filter((tag) => tag.Key === 'Name')[0]?.Value ||
-      //     'no name',
-      // }));
-      const idAddressMapping = [];
+      const idAddressMapping = Reservations[0].Instances.map((instance) => ({
+        id: instance.InstanceId,
+        address: instance.PublicIpAddress,
+        name:
+          instance.Tags.filter((tag) => tag.Key === 'Name')[0]?.Value ||
+          'no name',
+      }));
 
       const config = this.writeCaddyConfig(
         idAddressMapping.map((inst, idx) => ({
@@ -165,16 +165,20 @@ docker run -it -d --name code-server -p 8081:8080 -v "/home/ubuntu/.local:/home/
     }
   }
 
-  async adaptProxy(_configJson: string) {
-    this.http.get('http://127.0.0.1:2019/config/').subscribe({
-      next: (val) => console.log('response: ', val),
-      error: (err) => console.error('error accessing caddy: ', err),
-    });
-    // const response = await firstValueFrom(
-    //   this.http.post('http://127.0.0.1:2019/load', configJson, {
-    //     headers: { 'Content-Type': 'application/json' },
-    //   }),
-    // );
+  adaptProxy(configJson: string) {
+    // this.http.get('http://127.0.0.1:2019/config/').subscribe({
+    //   next: (val) => console.log('response: ', val),
+    //   error: (err) => console.error('error accessing caddy: ', err),
+    // });
+
+    this.http
+      .post('http://127.0.0.1:2019/load', configJson, {
+        headers: { 'Content-Type': 'application/json' },
+      })
+      .subscribe({
+        next: (response) => console.log('caddy updated: ', response.data),
+        error: (err) => console.error('error updating proxy: ', err),
+      });
   }
 
   private writeCaddyConfig(
