@@ -8,7 +8,6 @@ import {
 import { fromIni } from '@aws-sdk/credential-providers';
 import { HttpService } from '@nestjs/axios';
 import { Injectable } from '@nestjs/common';
-import { firstValueFrom } from 'rxjs';
 
 @Injectable()
 export class AwsProviderService {
@@ -166,14 +165,16 @@ docker run -it -d --name code-server -p 8081:8080 -v "/home/ubuntu/.local:/home/
     }
   }
 
-  async adaptProxy(configJson: string) {
-    const response = await firstValueFrom(
-      this.http.post('http://localhost:2019/load', configJson, {
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    );
-
-    console.log('caddy response: ', response.status, response.statusText);
+  async adaptProxy(_configJson: string) {
+    this.http.get('http://127.0.0.1:2019/config/').subscribe({
+      next: (val) => console.log('response: ', val),
+      error: (err) => console.error('error accessing caddy: ', err),
+    });
+    // const response = await firstValueFrom(
+    //   this.http.post('http://127.0.0.1:2019/load', configJson, {
+    //     headers: { 'Content-Type': 'application/json' },
+    //   }),
+    // );
   }
 
   private writeCaddyConfig(
