@@ -65,8 +65,8 @@ server {
 
     location / {
       proxy_pass http://localhost:8080/;
-      proxy_set_header Host \$http_host;
-      proxy_set_header Upgrade \$http_upgrade;
+      proxy_set_header Host \\$http_host;
+      proxy_set_header Upgrade \\$http_upgrade;
       proxy_set_header Connection upgrade;
       proxy_set_header Accept-Encoding gzip;
     }
@@ -92,7 +92,7 @@ su - ec2-user -c "echo 'nvm use 20' >> ~/.bashrc"
 
     const command = new RunInstancesCommand({
       KeyName: 'coderino-workspace-keypair',
-      ImageId: 'ami-0e04bcbe83a83792e', // TODO: aktuell "Ubuntu", noch auf "Amazon Linux" umstellen. Erfordert Test auf neuen AMI
+      ImageId: 'ami-0592c673f0b1e7665',
       SecurityGroupIds: ['sg-08ffc656374d0c010'],
       MinCount: names.length,
       MaxCount: names.length,
