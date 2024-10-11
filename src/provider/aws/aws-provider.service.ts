@@ -20,34 +20,74 @@ export class AwsProviderService {
   async createWorkspace(names: Array<string>): Promise<Array<string>> {
     console.log('create new workspace');
 
-    const userData = `#!/bin/bash
+    //     const userData = `#!/bin/bash
 
-# install docker and caddy
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+    // # install docker and caddy
+    // curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+    // curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
 
-apt update # TODO: muss vermieden werden, da sehr lange Zeit beansprucht
-apt install -y docker.io # TODO: docker über eigene Quellen installieren
-apt install -y caddy # TODO: caddy über eigene quellen installieren
+    // apt update # TODO: muss vermieden werden, da sehr lange Zeit beansprucht
+    // apt install -y docker.io # TODO: docker über eigene Quellen installieren
+    // apt install -y caddy # TODO: caddy über eigene quellen installieren
 
-usermod -aG docker ubuntu
+    // usermod -aG docker ubuntu
 
-cat <<EOF > /root/Caddyfile
-:8080
-reverse_proxy :8081
+    // cat <<EOF > /root/Caddyfile
+    // :8080
+    // reverse_proxy :8081
+    // EOF
+
+    // caddy reload -c /root/Caddyfile
+
+    // mkdir -p /home/ubuntu/.config/code-server
+    // chown ubuntu:ubuntu /home/ubuntu/.config
+    // chown ubuntu:ubuntu /home/ubuntu/.config/code-server
+    // mkdir -p /home/ubuntu/.local
+    // chown ubuntu:ubuntu /home/ubuntu/.local
+    // mkdir -p /home/ubuntu/project
+    // chown ubuntu:ubuntu /home/ubuntu/project
+
+    // docker run -it -d --name code-server -p 8081:8080 -v "/home/ubuntu/.local:/home/coder/.local" -v "/home/ubuntu/.config:/home/coder/.config"   -v "/home/ubuntu/project:/home/coder/project"   -u "$(id -u):$(id -g)"   -e "DOCKER_USER=ubuntu" -e "PASSWORD=coderino" --restart always  codercom/code-server:latest
+    // `;
+
+    const newUserData = `#!/bin/bash
+export HOME=/root
+curl -fsSL https://code-server.dev/install.sh | sh
+
+systemctl enable --now code-server@ec2-user
+
+dnf install -y nginx
+
+cat <<EOF > /etc/nginx/conf.d/code-server.conf
+server {
+    listen 80;
+    listen [::]:80;
+
+    location / {
+      proxy_pass http://localhost:8080/;
+      proxy_set_header Host \$http_host;
+      proxy_set_header Upgrade \$http_upgrade;
+      proxy_set_header Connection upgrade;
+      proxy_set_header Accept-Encoding gzip;
+    }
+}
 EOF
 
-caddy reload -c /root/Caddyfile
+systemctl enable --now nginx.service
 
-mkdir -p /home/ubuntu/.config/code-server
-chown ubuntu:ubuntu /home/ubuntu/.config
-chown ubuntu:ubuntu /home/ubuntu/.config/code-server
-mkdir -p /home/ubuntu/.local
-chown ubuntu:ubuntu /home/ubuntu/.local
-mkdir -p /home/ubuntu/project
-chown ubuntu:ubuntu /home/ubuntu/project
+cat <<EOF > /home/ec2-user/.config/code-server/config.yaml
+bind-addr: 127.0.0.1:8080
+auth: password
+password: coderino
+cert: false
+EOF
 
-docker run -it -d --name code-server -p 8081:8080 -v "/home/ubuntu/.local:/home/coder/.local" -v "/home/ubuntu/.config:/home/coder/.config"   -v "/home/ubuntu/project:/home/coder/project"   -u "$(id -u):$(id -g)"   -e "DOCKER_USER=ubuntu" -e "PASSWORD=coderino" --restart always  codercom/code-server:latest
+systemctl restart code-server@ec2-user
+
+
+su - ec2-user -c "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.4/install.sh | bash"
+su - ec2-user -c "source ~/.nvm/nvm.sh && nvm install 20 && nvm use 20"
+su - ec2-user -c "echo 'nvm use 20' >> ~/.bashrc"
 `;
 
     const command = new RunInstancesCommand({
@@ -63,7 +103,7 @@ docker run -it -d --name code-server -p 8081:8080 -v "/home/ubuntu/.local:/home/
           ResourceType: 'instance',
         },
       ], // TODO: mit envirnoment Flag abgleichen
-      UserData: Buffer.from(userData).toString('base64'),
+      UserData: Buffer.from(newUserData).toString('base64'),
     });
 
     try {
@@ -93,14 +133,14 @@ docker run -it -d --name code-server -p 8081:8080 -v "/home/ubuntu/.local:/home/
           'no name',
       }));
 
-      const config = this.writeCaddyConfig(
-        idAddressMapping.map((inst, idx) => ({
-          name: names[idx],
-          ipAddress: inst.address,
-        })),
-      );
+      // const config = this.writeCaddyConfig(
+      //   idAddressMapping.map((inst, idx) => ({
+      //     name: names[idx],
+      //     ipAddress: inst.address,
+      //   })),
+      // );
 
-      this.adaptProxy(config);
+      // this.adaptProxy(config);
 
       return idAddressMapping.map((instance) => JSON.stringify(instance));
     } catch (caught) {
