@@ -8,6 +8,7 @@ import {
 import { fromIni } from '@aws-sdk/credential-providers';
 import { HttpService } from '@nestjs/axios';
 import { Injectable } from '@nestjs/common';
+import { firstValueFrom } from 'rxjs';
 
 @Injectable()
 export class AwsProviderService {
@@ -88,18 +89,22 @@ systemctl restart code-server@ec2-user
 su - ec2-user -c "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.4/install.sh | bash"
 su - ec2-user -c "source ~/.nvm/nvm.sh && nvm install 20 && nvm use 20"
 su - ec2-user -c "echo 'nvm use 20' >> ~/.bashrc"
+su - ec2-user -c "source ~/.nvm/nvm.sh && npm install -g typescript"
 `;
 
     const command = new RunInstancesCommand({
       KeyName: 'coderino-workspace-keypair',
       ImageId: 'ami-0592c673f0b1e7665',
       SecurityGroupIds: ['sg-08ffc656374d0c010'],
-      MinCount: names.length,
-      MaxCount: names.length,
+      MinCount: 1, //names.length,
+      MaxCount: 1, //names.length,
       InstanceType: 't3a.medium',
       TagSpecifications: [
         {
-          Tags: [{ Key: 'env', Value: 'DEV' }],
+          Tags: [
+            { Key: 'env', Value: 'DEV' },
+            { Key: 'Name', Value: names[0] },
+          ],
           ResourceType: 'instance',
         },
       ], // TODO: mit envirnoment Flag abgleichen
@@ -133,14 +138,9 @@ su - ec2-user -c "echo 'nvm use 20' >> ~/.bashrc"
           'no name',
       }));
 
-      // const config = this.writeCaddyConfig(
-      //   idAddressMapping.map((inst, idx) => ({
-      //     name: names[idx],
-      //     ipAddress: inst.address,
-      //   })),
-      // );
-
-      // this.adaptProxy(config);
+      this.adaptApiGateway(idAddressMapping).catch((err) =>
+        console.error(`Error creating kong route: ${JSON.stringify(err)}`),
+      );
 
       return idAddressMapping.map((instance) => JSON.stringify(instance));
     } catch (caught) {
@@ -205,55 +205,31 @@ su - ec2-user -c "echo 'nvm use 20' >> ~/.bashrc"
     }
   }
 
-  adaptProxy(configJson: string) {
-    // this.http.get('http://127.0.0.1:2019/config/').subscribe({
-    //   next: (val) => console.log('response: ', val),
-    //   error: (err) => console.error('error accessing caddy: ', err),
-    // });
+  async adaptApiGateway(
+    idAddressMapping: Array<{ id: string; address: string; name: string }>,
+  ) {
+    for (const mapping of idAddressMapping) {
+      const serviceResponse = await firstValueFrom(
+        this.http.post(
+          'http://127.0.0.1:8001/services/',
+          new URLSearchParams({
+            name: `workspace_${mapping.name}_service`,
+            url: `http://${mapping.address}:80`,
+          }),
+        ),
+      );
 
-    this.http
-      .post('http://127.0.0.1:2019/load', configJson, {
-        headers: { 'Content-Type': 'application/json' },
-      })
-      .subscribe({
-        next: (response) => console.log('caddy updated: ', response.data),
-        error: (err) => console.error('error updating proxy: ', err),
-      });
-  }
-
-  private writeCaddyConfig(
-    config: Array<{ name: string; ipAddress: string }>,
-  ): string {
-    const caddyConfig = {
-      apps: {
-        http: {
-          servers: {
-            srv0: {
-              listen: [':443'],
-              routes: config.map((val) => ({
-                handle: [
-                  {
-                    handler: 'subroute',
-                    routes: [
-                      {
-                        handle: [
-                          {
-                            handler: 'reverse_proxy',
-                            upstreams: [{ dial: `${val.ipAddress}:8080` }],
-                          },
-                        ],
-                      },
-                    ],
-                  },
-                ],
-                match: [{ host: [`${val.name}.coderino.io`] }],
-                terminal: true,
-              })),
-            },
-          },
-        },
-      },
-    };
-    return JSON.stringify(caddyConfig);
+      await firstValueFrom(
+        this.http.post(
+          'http://localhost:8001/routes/',
+          new URLSearchParams({
+            'service.id': serviceResponse.data[0].id,
+            'hosts[]': `${mapping.name}.coderino.io`,
+          }),
+        ),
+      ).then(() =>
+        console.log(`kong route created: ${mapping.name} : ${mapping.address}`),
+      );
+    }
   }
 }
