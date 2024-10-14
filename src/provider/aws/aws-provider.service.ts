@@ -223,7 +223,7 @@ su - ec2-user -c "source ~/.nvm/nvm.sh && npm install -g typescript"
         this.http.post(
           'http://localhost:8001/routes/',
           new URLSearchParams({
-            'service.id': serviceResponse.data[0].id,
+            'service.id': serviceResponse.data.id,
             'hosts[]': `${mapping.name}.coderino.io`,
           }),
         ),
