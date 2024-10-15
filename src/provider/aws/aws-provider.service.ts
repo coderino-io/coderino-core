@@ -3,6 +3,8 @@ import {
   EC2Client,
   paginateDescribeInstances,
   RunInstancesCommand,
+  StartInstancesCommand,
+  StopInstancesCommand,
   TerminateInstancesCommand,
 } from '@aws-sdk/client-ec2';
 import { fromIni } from '@aws-sdk/credential-providers';
@@ -203,6 +205,79 @@ su - ec2-user -c "source ~/.nvm/nvm.sh && npm install -g typescript"
       console.warn(`${caught.message}`);
       return [];
     }
+  }
+
+  async getState() {
+    const { Reservations } = await this.client.send(
+      new DescribeInstancesCommand({
+        MaxResults: 100,
+      }),
+    );
+
+    const instances = Reservations.map((v) => v.Instances)
+      .flat()
+      .map((instance) => ({
+        id: instance.InstanceId,
+        address: instance.PublicIpAddress,
+        name:
+          instance.Tags.filter((tag) => tag.Key === 'Name')[0]?.Value ||
+          'no name',
+        state: instance.State.Name,
+      }));
+
+    return instances;
+  }
+
+  async stopAllWorkspaces() {
+    const instanceIds = await this.getRunningInstanceIds();
+
+    const response = await this.client.send(
+      new StopInstancesCommand({
+        InstanceIds: instanceIds,
+      }),
+    );
+
+    return response.StoppingInstances.map((instance) => instance.InstanceId);
+  }
+
+  async startWorkspace(id: string) {
+    const response = await this.client.send(
+      new StartInstancesCommand({
+        InstanceIds: [id],
+      }),
+    );
+
+    console.log(
+      'starting instances: ',
+      response.StartingInstances[0].InstanceId,
+    );
+
+    // wait 1 second
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    const { Reservations } = await this.client.send(
+      new DescribeInstancesCommand({
+        InstanceIds: [id],
+      }),
+    );
+
+    const name =
+      Reservations[0].Instances[0].Tags.find((tag) => tag.Key === 'Name')
+        ?.Value || 'no name';
+    const address = Reservations[0].Instances[0].PublicIpAddress;
+
+    this.updateGatewayIp(name, address);
+
+    return { name, address };
+  }
+
+  async updateGatewayIp(name: string, address: string) {
+    await firstValueFrom(
+      this.http.patch(
+        `http://127.0.0.1:8001/services/workspace_${name}_service`,
+        new URLSearchParams({ url: `http://${address}:80` }),
+      ),
+    );
   }
 
   async adaptApiGateway(

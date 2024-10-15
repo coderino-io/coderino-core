@@ -5,6 +5,21 @@ import { AwsProviderService } from './aws-provider.service';
 export class AwsProviderController {
   constructor(private readonly awsService: AwsProviderService) {}
 
+  @Get('state')
+  async getWorkspaceState() {
+    return await this.awsService.getState();
+  }
+
+  @Get('start/:id')
+  async startWorkspace(@Param() params: any) {
+    return await this.awsService.startWorkspace(params.id);
+  }
+
+  @Get('stopAll')
+  async stopAllWorkspaces() {
+    return await this.awsService.stopAllWorkspaces();
+  }
+
   @Get('create')
   async createWorkspace(
     @Param() params: any,
