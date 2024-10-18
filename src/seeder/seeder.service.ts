@@ -20,12 +20,12 @@ export class SeederService implements OnModuleInit{
         async seed(){
             const user = new User();
             user.active = true;
-            user.firstname = "John";
-            user.lastname = "Doe";
+            user.firstName = "John";
+            user.lastName = "Doe";
             user.password = await bcrypt.hash("test", 10);
             user.mail = "john.doe@example.io";
             user.username = "johndoe";
-            user.lastActivity = new Date();
+            user.lastActivityAt = new Date();
             
             await this.userRepository.save(user);
         }

@@ -1,10 +1,11 @@
+import { Guid } from "guid-typescript";
 import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
 
 @Entity()
 export class User {
     
     @PrimaryGeneratedColumn()
-    id:number;
+    id:Guid;
 
     @Column()
     username:string;
@@ -16,14 +17,14 @@ export class User {
     mail:string;
 
     @Column()
-    firstname:string;
+    firstName:string;
 
     @Column()
-    lastname: string;
+    lastName: string;
 
     @Column()
     active: boolean;
 
     @Column()
-    lastActivity: Date;
+    lastActivityAt: Date;
 }
