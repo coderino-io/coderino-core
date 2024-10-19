@@ -1,0 +1,18 @@
+version: '3.8'  
+
+services:
+  postgres:
+    image: postgres:14  
+    container_name: Coderino-Database  
+    environment:
+      POSTGRES_USER: coderino
+      POSTGRES_PASSWORD: YOUR_PASSWORD
+      POSTGRES_DB: Coderino
+    ports:
+      - "5432:5432"  
+    volumes:
+      - postgres_data:/var/lib/postgresql/data 
+
+volumes:
+  postgres_data:
+    driver: local
