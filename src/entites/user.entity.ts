@@ -1,11 +1,10 @@
-import { Guid } from "guid-typescript";
-import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
+import { Column, Entity, Generated, PrimaryColumn } from "typeorm";
 
 @Entity()
 export class User {
     
-    @PrimaryGeneratedColumn()
-    id:Guid;
+    @PrimaryColumn({type:"uuid"})
+    @Generated("uuid") id: string;
 
     @Column()
     username:string;
