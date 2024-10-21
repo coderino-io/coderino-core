@@ -7,6 +7,8 @@ import { ProxyController } from './proxy/proxy.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SeederService } from './seeder/seeder.service';
 import { User } from './entites/user.entity';
+import { AwsTaskSchedulerService } from './aws-task-scheduler/aws-task-scheduler.service';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -30,8 +32,9 @@ import { User } from './entites/user.entity';
       }),
     }),
     TypeOrmModule.forFeature([User]),
+    ScheduleModule.forRoot()
   ],
   controllers: [AppController, ProxyController],
-  providers: [AppService, SeederService],
+  providers: [AppService, SeederService, AwsTaskSchedulerService],
 })
 export class AppModule {}
