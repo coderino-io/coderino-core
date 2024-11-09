@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
+
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { User } from './entites/user.entity';
 import { AwsProviderModule } from './provider/aws/aws-provider.module';
 import { ProxyController } from './proxy/proxy.controller';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { SeederService } from './seeder/seeder.service';
-import { User } from './entites/user.entity';
 
 @Module({
   imports: [
@@ -25,7 +26,7 @@ import { User } from './entites/user.entity';
         username: configService.get('DB_USERNAME'),
         password: configService.get('DB_PASSWORD'),
         database: configService.get('DB_DATABASE'),
-        entities: ["dist/**/*.entity{.ts,.js}"],
+        entities: ['dist/**/*.entity{.ts,.js}'],
         synchronize: true,
       }),
     }),
